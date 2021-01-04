@@ -1,0 +1,20 @@
+version: '3.7'
+services:
+  web:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./:/code
+      - ./docker/conf/default.conf:/etc/nginx/conf.d/default.conf
+  php:
+    build:
+      context: ./docker
+    volumes:
+      - ./:/code
+      - ./docker/php/xdebug.ini:/usr/local/etc/php/conf.d/xdebug.ini
+  dynamodb:
+    image: amazon/dynamodb-local:latest
+    ports:
+      - "8000:8000"
+    command: -jar DynamoDBLocal.jar -sharedDb
