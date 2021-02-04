@@ -8,6 +8,7 @@ use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\AttributeType;
 use JLucki\ODM\Spark\Attribute\GlobalSecondaryIndex;
 use JLucki\ODM\Spark\Attribute\KeyType;
+use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
 use JLucki\ODM\Spark\Attribute\ProjectionType as ProjectionTypeAttribute;
 use JLucki\ODM\Spark\Attribute\ReadCapacityUnits;
 use JLucki\ODM\Spark\Attribute\TableName;
@@ -20,7 +21,7 @@ use ReflectionClass;
 
 /**
  * The SchemaFactory renders a schema array for the Table formatted as per DynamoDB
- * requirements as outline in the PHP SDK:
+ * requirements as outlined in the PHP SDK:
  *
  * https://docs.aws.amazon.com/aws-sdk-php/v2/api/class-Aws.DynamoDb.DynamoDbClient.html#_createTable
  *
@@ -188,6 +189,7 @@ class SchemaFactory
                 case AttributeName::class:
                 case AttributeType::class:
                 case ProjectionTypeAttribute::class:
+                case NonKeyAttributes::class:
                     $attributeDefinition[$qualifiedName] = $argumentValue;
                     break;
                 case GlobalSecondaryIndex::class:

@@ -47,6 +47,23 @@ $spark = new Spark(
 ### How to create a data model:
 See [Article.php](https://github.com/jlucki/spark/blob/master/src/Spark/Model/Article.php) for an example table/item data model.
 
+### How to create a global secondary index:
+To create a GSI on your table add the `GlobalSecondaryIndex` attribute to the property. The GSI name will default to the value of `AttributeName`.
+
+The default projection type is `KEYS_ONLY`. To change the projection type add the `ProjectionType` attribute to the property, and pass in one of the following values: `ProjectionType::KEYS_ONLY`, `ProjectionType::INCLUDE`, or `ProjectionType::ALL`.
+
+When using `ProjectionType::INCLUDE`, you will also have to add the `NonKeyAttributes` attribute to the property, and pass in an array that contains the names of any attributes you want to project into the index. For example: `NonKeyAttributes(['title', 'content'])`  
+```php
+#[
+    KeyType('HASH'),
+    AttributeName('slug'),
+    AttributeType('S'),
+    GlobalSecondaryIndex,
+    ProjectionType(ProjectionType::ALL),
+]
+private string $slug;
+```
+
 ### How to create a table:
 ```php
 $table = $spark->createTable(Article::class);

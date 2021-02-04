@@ -9,10 +9,20 @@ use Attribute;
 #[Attribute(Attribute::TARGET_PROPERTY)]
 class NonKeyAttributes
 {
+
     /**
-     * @param mixed ...$attributes
+     * @param string[] $attributes
      */
     public function __construct(
-        ...$attributes,
+        private array $attributes,
     ) {}
+
+    /**
+     * @return string[]
+     */
+    public function getAttributes(): array
+    {
+        return $this->attributes;
+    }
+
 }
