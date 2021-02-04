@@ -75,9 +75,26 @@ if (\count($items) < 4) {
 /** @var Article[] $items */
 $items = getItems($spark);
 
-foreach ($items as $item) {
-    echo sprintf('<h3>%s</h3>', $item->getTitle());
-    echo sprintf('<p>%s</p>', $item->getSlug());
-    echo sprintf('<p>%s</p>', $item->getDatetime()->format('d-m-Y'));
-    echo $item->getContent();
-}
+?>
+
+<html lang="en">
+
+    <head>
+        <title>Spark ODM</title>
+        <link rel="shortcut icon" href="favicon.png">
+    </head>
+
+    <body>
+
+        <?php
+            foreach ($items as $item) {
+                echo sprintf('<h3>%s</h3>', $item->getTitle());
+                echo sprintf('<p>%s</p>', $item->getSlug());
+                echo sprintf('<p>%s</p>', $item->getDatetime()->format('d-m-Y'));
+                echo $item->getContent();
+            }
+        ?>
+
+    </body>
+
+</html>

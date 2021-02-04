@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace JLucki\ODM\Spark\Schema;
 
-use JLucki\ODM\Spark\Attribute\KeyType;
 use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
 use JLucki\ODM\Spark\Attribute\ProjectionType;
 
@@ -31,7 +30,7 @@ class Projection
         $projection['ProjectionType'] = $this->attributeDefinition[ProjectionType::class];
 
         if (isset($this->attributeDefinition[NonKeyAttributes::class]) === true) {
-            $projection['NonKeyAttributes'] = $this->attributeDefinition[KeyType::class];
+            $projection['NonKeyAttributes'] = $this->attributeDefinition[NonKeyAttributes::class];
         }
 
         return $projection;
