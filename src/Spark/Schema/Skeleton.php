@@ -14,19 +14,25 @@ class Skeleton
     ) {}
 
     /**
+     * @param bool $includeKeySchema
      * @return array<string, mixed>
      */
-    public function getArray(): array
+    public function getArray(bool $includeKeySchema = true): array
     {
-        return [
+        $schemaSkeleton = [
             'TableName' => $this->tableName,
             'ProvisionedThroughput' => [
                 'ReadCapacityUnits' => $this->readCapacityUnits,
                 'WriteCapacityUnits' => $this->writeCapacityUnits,
             ],
-            'KeySchema' => [],
             'AttributeDefinitions' => [],
         ];
+
+        if ($includeKeySchema === true) {
+            $schemaSkeleton['KeySchema'] = [];
+        }
+
+        return $schemaSkeleton;
     }
 
 }

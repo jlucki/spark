@@ -8,7 +8,9 @@ use Aws\DynamoDb\DynamoDbClient;
 use Aws\DynamoDb\Exception\DynamoDbException;
 use JLucki\ODM\Spark\Exception\TableAlreadyExistsException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
+use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Model\Base\Table;
+use JLucki\ODM\Spark\Schema\UpdateSchemaFactory;
 use JLucki\ODM\Spark\Trait\OperatorTrait;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -83,6 +85,47 @@ class TableOperator
         }
 
         return true;
+    }
+
+    /**
+     * @param string $itemClass
+     * @return Table
+     * @throws TableUpdateFailedException
+     */
+    public function updateTable(string $itemClass): Table
+    {
+        $updateSchema = $this->getUpdateSchema($itemClass);
+
+        $schema = $this->getSchema($itemClass);
+
+        try {
+            $result = $this->client->updateTable($updateSchema);
+        } catch (DynamoDbException $e) {
+            $message = "Unable to update table:\n";
+            $message .= $e->getMessage() . "\n";
+            throw new TableUpdateFailedException($message, Response::HTTP_BAD_REQUEST);
+        }
+
+        return new Table($schema['TableName'], $result['Table']);
+    }
+
+    /**
+     * @param string $itemClass
+     * @return array
+     */
+    private function getUpdateSchema(string $itemClass): array
+    {
+        $item = $this->getItemObject($itemClass);
+
+        $currentSchema = $item->getSchema();
+
+        $describedTable = $this->client->describeTable([
+            'TableName' => $item->getTableName(),
+        ]);
+
+        $describedSchema = $describedTable['Table'];
+
+        return (new UpdateSchemaFactory($describedSchema, $currentSchema))->getSchema();
     }
 
 }

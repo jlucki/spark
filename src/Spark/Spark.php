@@ -7,6 +7,7 @@ namespace JLucki\ODM\Spark;
 use JLucki\ODM\Spark\Exception\TableAlreadyExistsException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
 use JLucki\ODM\Spark\Exception\ItemActionFailedException;
+use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Interface\ItemInterface;
 use JLucki\ODM\Spark\Model\Base\Table;
 use JLucki\ODM\Spark\Operator\ItemOperator;
@@ -28,6 +29,16 @@ class Spark extends ClientConnection
     public function createTable(string $itemClass): Table
     {
         return (new TableOperator($this->client))->createTable($itemClass);
+    }
+
+    /**
+     * @param string $itemClass
+     * @return Table
+     * @throws TableUpdateFailedException
+     */
+    public function updateTable(string $itemClass): Table
+    {
+        return (new TableOperator($this->client))->updateTable($itemClass);
     }
 
     /**

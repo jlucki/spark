@@ -20,7 +20,7 @@ use ReflectionAttribute;
 use ReflectionClass;
 
 /**
- * The SchemaFactory renders a schema array for the Table formatted as per DynamoDB
+ * The SchemaFactory renders a schema array for the table formatted as per DynamoDB
  * requirements as outlined in the PHP SDK:
  *
  * https://docs.aws.amazon.com/aws-sdk-php/v2/api/class-Aws.DynamoDb.DynamoDbClient.html#_createTable

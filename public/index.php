@@ -22,6 +22,8 @@ try {
     $table = $spark->createTable(Article::class);
 }
 
+$table = $spark->updateTable(Article::class);
+
 function getItems(Spark $spark): array
 {
 
