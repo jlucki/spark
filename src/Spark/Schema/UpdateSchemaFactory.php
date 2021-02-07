@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JLucki\ODM\Spark\Schema;
 
 use Exception;
+use function count;
 
 /**
  * The UpdateSchemaFactory renders an update schema array for the table formatted as per DynamoDB
@@ -22,7 +23,7 @@ class UpdateSchemaFactory
 {
 
     /** @var array<string, mixed> */
-    private array $schema;
+    private array $updateSchema;
 
     public function __construct(
         /** @var array<string, mixed> */
@@ -36,9 +37,9 @@ class UpdateSchemaFactory
     /**
      * @return array<string, mixed>
      */
-    public function getSchema(): array
+    public function getUpdateSchema(): array
     {
-        return $this->schema;
+        return $this->updateSchema;
     }
 
     private function renderSchema(): void
@@ -55,19 +56,11 @@ class UpdateSchemaFactory
             $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'],
             $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'],
         );
-        $this->schema = $schemaSkeleton->getArray(false);
+        $this->updateSchema = $schemaSkeleton->getArray(false);
     }
 
     private function generateSchemaVariation()
     {
-        $supportedParameters = [
-            'TableName',
-            'KeySchema',
-            'AttributeDefinitions',
-            'ProvisionThroughput',
-            'GlobalSecondaryIndexes',
-        ];
-
         foreach ($this->currentSchema as $parameter => $value) {
             switch ($parameter) {
                 case 'TableName':
@@ -96,25 +89,61 @@ class UpdateSchemaFactory
      */
     private function setTableName(): void
     {
-        if ($this->currentSchema['TableName'] !== $this->describedSchema['Table']) {
+        if ($this->currentSchema['TableName'] !== $this->describedSchema['TableName']) {
             throw new Exception('updateTable doesn\'t support changing the table name');
         }
     }
 
+    /**
+     * @throws Exception
+     */
     private function setKeySchema(): void
     {
+        $diff = array_diff($this->currentSchema['KeySchema'], $this->describedSchema['KeySchema']);
+        if (count($diff) > 0) {
+            throw new Exception('updateTable doesn\'t support changing the table key schema');
+        }
     }
 
     private function setAttributeDefinitions(): void
     {
+        $this->updateSchema['AttributeDefinitions'] = $this->currentSchema['AttributeDefinitions'];
     }
 
     private function setProvisionThroughput(): void
     {
+        $this->updateSchema['ProvisionedThroughput']['ReadCapacityUnits'] = $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'];
+        $this->updateSchema['ProvisionedThroughput']['WriteCapacityUnits'] = $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'];
     }
 
     private function setGlobalSecondaryIndexes(): void
     {
+        $addedParameters = array_diff($this->currentSchema, $this->describedSchema);
+        foreach ($addedParameters as $addedProperty) {
+            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
+                'Create' => [
+                    'IndexName' => '',
+                ],
+            ];
+        }
+
+        $removedParameters = array_diff($this->describedSchema, $this->currentSchema);
+        foreach ($removedParameters as $removedParameter) {
+            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
+                'Delete' => [
+                    'IndexName' => '',
+                ],
+            ];
+        }
+
+        $updatedParameters = [];
+        foreach ($updatedParameters as $updatedParameter) {
+            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
+                'Update' => [
+                    'IndexName' => '',
+                ],
+            ];
+        }
     }
 
 }

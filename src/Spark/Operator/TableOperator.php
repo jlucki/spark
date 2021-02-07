@@ -125,7 +125,7 @@ class TableOperator
 
         $describedSchema = $describedTable['Table'];
 
-        return (new UpdateSchemaFactory($describedSchema, $currentSchema))->getSchema();
+        return (new UpdateSchemaFactory($describedSchema, $currentSchema))->getUpdateSchema();
     }
 
 }
