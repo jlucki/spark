@@ -11,28 +11,24 @@ class Skeleton
         private string $tableName,
         private int $readCapacityUnits,
         private int $writeCapacityUnits,
+        private bool $onDemand,
     ) {}
 
     /**
-     * @param bool $includeKeySchema
      * @return array<string, mixed>
      */
-    public function getArray(bool $includeKeySchema = true): array
+    public function getArray(): array
     {
-        $schemaSkeleton = [
+        return [
             'TableName' => $this->tableName,
             'ProvisionedThroughput' => [
                 'ReadCapacityUnits' => $this->readCapacityUnits,
                 'WriteCapacityUnits' => $this->writeCapacityUnits,
+                'OnDemand' => $this->onDemand,
             ],
+            'KeySchema' => [],
             'AttributeDefinitions' => [],
         ];
-
-        if ($includeKeySchema === true) {
-            $schemaSkeleton['KeySchema'] = [];
-        }
-
-        return $schemaSkeleton;
     }
 
 }

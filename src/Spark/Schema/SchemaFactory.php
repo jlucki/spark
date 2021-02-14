@@ -9,6 +9,8 @@ use JLucki\ODM\Spark\Attribute\AttributeType;
 use JLucki\ODM\Spark\Attribute\GlobalSecondaryIndex;
 use JLucki\ODM\Spark\Attribute\KeyType;
 use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
+use JLucki\ODM\Spark\Attribute\OnDemand;
+use JLucki\ODM\Spark\Attribute\ProjectionType;
 use JLucki\ODM\Spark\Attribute\ProjectionType as ProjectionTypeAttribute;
 use JLucki\ODM\Spark\Attribute\ReadCapacityUnits;
 use JLucki\ODM\Spark\Attribute\TableName;
@@ -36,6 +38,8 @@ class SchemaFactory
     private int $writeCapacityUnits;
 
     private int $readCapacityUnits;
+
+    private bool $onDemand;
 
     /** @var array<string, mixed> */
     private array $schema;
@@ -96,6 +100,10 @@ class SchemaFactory
                 if ($attributeName === WriteCapacityUnits::class) {
                     $this->writeCapacityUnits = $this->getFirstArgumentValue($classAttribute);
                 }
+
+                if ($attributeName === OnDemand::class) {
+                    $this->onDemand = $this->getFirstArgumentValue($classAttribute);
+                }
             }
         }
     }
@@ -110,6 +118,7 @@ class SchemaFactory
         $this->tableName = $this->reflectionClass->getShortName();
         $this->readCapacityUnits = Defaults::DEFAULT_READ_CAPACITY_UNITS;
         $this->writeCapacityUnits = Defaults::DEFAULT_WRITE_CAPACITY_UNITS;
+        $this->onDemand = Defaults::ON_DEMAND;
     }
 
     private function setSchemaSkeleton(): void
@@ -117,7 +126,8 @@ class SchemaFactory
         $schemaSkeleton = new Skeleton(
             $this->tableName,
             $this->readCapacityUnits,
-            $this->writeCapacityUnits
+            $this->writeCapacityUnits,
+            $this->onDemand,
         );
         $this->schema = $schemaSkeleton->getArray();
     }
@@ -144,8 +154,21 @@ class SchemaFactory
      */
     private function getFirstArgumentValue(ReflectionAttribute $reflectionAttribute): mixed
     {
-        $arguments = $reflectionAttribute->getArguments();
-        return reset($arguments);
+        // Attributes with default values will require a
+        // new instance to retrieve the property value
+        switch ($reflectionAttribute->getName()) {
+            case OnDemand::class:
+                /** @var OnDemand $instance */
+                $instance = $reflectionAttribute->newInstance();
+                return $instance->isOnDemand();
+            case ProjectionType::class:
+                /** @var ProjectionType $instance */
+                $instance = $reflectionAttribute->newInstance();
+                return $instance->getType();
+            default:
+                $arguments = $reflectionAttribute->getArguments();
+                return reset($arguments);
+        }
     }
 
     /**
@@ -190,6 +213,7 @@ class SchemaFactory
                 case AttributeType::class:
                 case ProjectionTypeAttribute::class:
                 case NonKeyAttributes::class:
+                case OnDemand::class:
                     $attributeDefinition[$qualifiedName] = $argumentValue;
                     break;
                 case GlobalSecondaryIndex::class:
@@ -211,16 +235,19 @@ class SchemaFactory
 
         $this->schema['AttributeDefinitions'][] = (new AttributeDefinition($attributeDefinition))->getArray();
 
+        $provisionedThroughput = [
+            'ReadCapacityUnits' => $readCapacityUnits,
+            'WriteCapacityUnits' => $writeCapacityUnits,
+            'OnDemand' => $attributeDefinition[OnDemand::class] ?? false,
+        ];
+
         $this->schema['GlobalSecondaryIndexes'][] = [
             'IndexName' => $indexName,
             'KeySchema' => [
                 (new KeySchema($attributeDefinition))->getArray(),
             ],
             'Projection' => (new Projection($attributeDefinition))->getArray(),
-            'ProvisionedThroughput' => [
-                'ReadCapacityUnits' => $readCapacityUnits,
-                'WriteCapacityUnits' => $writeCapacityUnits,
-            ],
+            'ProvisionedThroughput' => $provisionedThroughput,
         ];
     }
 

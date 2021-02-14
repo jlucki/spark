@@ -11,4 +11,6 @@ class Defaults
 
     public const DEFAULT_READ_CAPACITY_UNITS = 10;
 
+    public const ON_DEMAND = false;
+
 }

@@ -8,9 +8,13 @@ use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\AttributeType;
 use JLucki\ODM\Spark\Attribute\GlobalSecondaryIndex;
 use JLucki\ODM\Spark\Attribute\KeyType;
+use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
+use JLucki\ODM\Spark\Attribute\OnDemand;
 use JLucki\ODM\Spark\Attribute\OpenAttribute;
 use JLucki\ODM\Spark\Attribute\ProjectionType;
+use JLucki\ODM\Spark\Attribute\ReadCapacityUnits;
 use JLucki\ODM\Spark\Attribute\TableName;
+use JLucki\ODM\Spark\Attribute\WriteCapacityUnits;
 use JLucki\ODM\Spark\Model\Base\Item;
 use DateTime;
 
@@ -23,6 +27,7 @@ use DateTime;
 
 #[
     TableName('Articles'),
+    OnDemand,
 ]
 class Article extends Item
 {
@@ -46,9 +51,22 @@ class Article extends Item
         AttributeName('slug'),
         AttributeType('S'),
         GlobalSecondaryIndex,
-        ProjectionType(ProjectionType::ALL),
+        ProjectionType(ProjectionType::INCLUDE),
+        NonKeyAttributes(['title', 'datetime']),
+        ReadCapacityUnits(10),
+        WriteCapacityUnits(10),
+        OnDemand,
     ]
     private string $slug;
+
+    #[
+        KeyType('HASH'),
+        AttributeName('newSlug'),
+        AttributeType('S'),
+        GlobalSecondaryIndex,
+        ProjectionType(ProjectionType::ALL),
+    ]
+    private string $newSlug;
 
     #[
         OpenAttribute('title'),

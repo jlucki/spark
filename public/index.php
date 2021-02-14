@@ -83,7 +83,7 @@ $items = getItems($spark);
 
     <head>
         <title>Spark ODM</title>
-        <link rel="shortcut icon" href="favicon.png">
+        <link rel="shortcut icon" href="favicon.ico">
     </head>
 
     <body>

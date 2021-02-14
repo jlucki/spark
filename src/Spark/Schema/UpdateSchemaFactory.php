@@ -23,6 +23,29 @@ class UpdateSchemaFactory
 {
 
     /** @var array<string, mixed> */
+    private const SUPPORTED_PROVISIONED_THROUGHPUT_PARAMETERS = [
+        'ReadCapacityUnits' => '',
+        'WriteCapacityUnits' => '',
+        'OnDemand' => '',
+    ];
+
+    /** @var array<string, mixed> */
+    private const SUPPORTED_PARAMETERS = [
+        'TableName' => '',
+        'KeySchema' => '',
+        'AttributeDefinitions' => '',
+        'ProvisionedThroughput' => self::SUPPORTED_PROVISIONED_THROUGHPUT_PARAMETERS,
+        'GlobalSecondaryIndexes' => [
+            [
+                'IndexName' => '',
+                'KeySchema' => '',
+                'Projection' => '',
+                'ProvisionedThroughput' => self::SUPPORTED_PROVISIONED_THROUGHPUT_PARAMETERS,
+            ],
+        ],
+    ];
+
+    /** @var array<string, mixed> */
     private array $updateSchema;
 
     public function __construct(
@@ -31,7 +54,8 @@ class UpdateSchemaFactory
         /** @var array<string, mixed> */
         private array $currentSchema,
     ) {
-        $this->renderSchema();
+        $this->tidyDescribedSchema();
+        $this->renderUpdateSchema();
     }
 
     /**
@@ -42,7 +66,7 @@ class UpdateSchemaFactory
         return $this->updateSchema;
     }
 
-    private function renderSchema(): void
+    private function renderUpdateSchema(): void
     {
         $this->setSchemaSkeleton();
 
@@ -51,37 +75,40 @@ class UpdateSchemaFactory
 
     private function setSchemaSkeleton()
     {
-        $schemaSkeleton = new Skeleton(
-            $this->currentSchema['TableName'],
-            $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'],
-            $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'],
-        );
-        $this->updateSchema = $schemaSkeleton->getArray(false);
+        $schemaSkeleton = [
+            'TableName' => $this->currentSchema['TableName'],
+        ];
+
+        $provisionedThroughput = [];
+
+        if ($this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'] !== $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits']) {
+            $readCapacityUnits = $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'];
+            $provisionedThroughput['ReadCapacityUnits'] = $readCapacityUnits;
+        }
+
+
+        if ($this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'] !== $this->describedSchema['ProvisionedThroughput']['WriteCapacityUnits']) {
+            $writeCapacityUnits = $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'];
+            $provisionedThroughput['WriteCapacityUnits'] = $writeCapacityUnits;
+        }
+
+        if (count($provisionedThroughput) > 0) {
+            $schemaSkeleton['ProvisionedThroughput'] = $provisionedThroughput;
+        }
+
+        $this->updateSchema = $schemaSkeleton;
     }
 
-    private function generateSchemaVariation()
+    /**
+     * @throws Exception
+     */
+    private function generateSchemaVariation(): void
     {
-        foreach ($this->currentSchema as $parameter => $value) {
-            switch ($parameter) {
-                case 'TableName':
-                    $this->setTableName();
-                    break;
-                case 'KeySchema':
-                    $this->setKeySchema();
-                    break;
-                case 'AttributeDefinitions':
-                    $this->setAttributeDefinitions();
-                    break;
-                case 'ProvisionThroughput':
-                    $this->setProvisionThroughput();
-                    break;
-                case 'GlobalSecondaryIndexes':
-                    $this->setGlobalSecondaryIndexes();
-                    break;
-                default:
-                    // unsupported parameter, safe to ignore
-            }
-        }
+        $this->setTableName();
+        $this->setKeySchema();
+        $this->setAttributeDefinitions();
+        $this->setProvisionThroughput();
+        $this->setGlobalSecondaryIndexes();
     }
 
     /**
@@ -99,7 +126,7 @@ class UpdateSchemaFactory
      */
     private function setKeySchema(): void
     {
-        $diff = array_diff($this->currentSchema['KeySchema'], $this->describedSchema['KeySchema']);
+        $diff = $this->getArrayDiff($this->currentSchema['KeySchema'], $this->describedSchema['KeySchema']);
         if (count($diff) > 0) {
             throw new Exception('updateTable doesn\'t support changing the table key schema');
         }
@@ -118,25 +145,21 @@ class UpdateSchemaFactory
 
     private function setGlobalSecondaryIndexes(): void
     {
-        $addedParameters = array_diff($this->currentSchema, $this->describedSchema);
-        foreach ($addedParameters as $addedProperty) {
+        foreach ($this->getIndexesDiff($this->currentSchema, $this->describedSchema) as $newSecondaryIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
-                'Create' => [
-                    'IndexName' => '',
-                ],
+                'Create' => $newSecondaryIndex,
             ];
         }
 
-        $removedParameters = array_diff($this->describedSchema, $this->currentSchema);
-        foreach ($removedParameters as $removedParameter) {
+        foreach ($this->getIndexesDiff($this->describedSchema, $this->currentSchema) as $deletedSecondaryIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
                 'Delete' => [
-                    'IndexName' => '',
+                    'IndexName' => $deletedSecondaryIndex['IndexName'],
                 ],
             ];
         }
 
-        $updatedParameters = [];
+        $updatedParameters = $this->getArrayDiff($this->currentSchema['GlobalSecondaryIndexes'], $this->describedSchema['GlobalSecondaryIndexes']);
         foreach ($updatedParameters as $updatedParameter) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
                 'Update' => [
@@ -144,6 +167,69 @@ class UpdateSchemaFactory
                 ],
             ];
         }
+    }
+
+    /**
+     * Before determining the array differences, we'll remove
+     * any unsupported values from the described schema
+     */
+    private function tidyDescribedSchema(): void
+    {
+        $this->describedSchema = $this->removeUnsupportedParameters($this->describedSchema, self::SUPPORTED_PARAMETERS);
+    }
+
+    /**
+     * @param array $parameters
+     * @param array $supportedParameters
+     * @return array
+     */
+    private function removeUnsupportedParameters(array $parameters, array $supportedParameters): array
+    {
+        foreach ($parameters as $parameter => $content) {
+            if (in_array($parameter, array_keys($supportedParameters)) === false) {
+                unset($parameters[$parameter]);
+            } elseif (is_array($content) === true && is_array($supportedParameters[$parameter]) === true) {
+                $parameters[$parameter] = $this->removeUnsupportedParameters($content, $supportedParameters[$parameter]);
+            }
+        }
+        return $parameters;
+    }
+
+    /**
+     * @param array $first
+     * @param array $second
+     * @return array
+     */
+    private function getArrayDiff(array $first, array $second): array
+    {
+        return array_udiff_assoc($first, $second, function($a, $b) {
+            return intval($a !== $b);
+        });
+    }
+
+    /**
+     * Returns indexes that exist in $schemaOne, but not in $schemaTwo
+     *
+     * @param array $schemaOne
+     * @param array $schemaTwo
+     * @return array
+     */
+    private function getIndexesDiff(array $schemaOne, array $schemaTwo): array
+    {
+        $indexes = [];
+        foreach ($schemaOne['GlobalSecondaryIndexes'] as $schemaOneGlobalSecondaryIndex) {
+            $existsInOneOnly = true;
+            foreach ($schemaTwo['GlobalSecondaryIndexes'] as $schemaTwoGlobalSecondaryIndex) {
+                if ($schemaOneGlobalSecondaryIndex['IndexName'] === $schemaTwoGlobalSecondaryIndex['IndexName']) {
+                    $existsInOneOnly = false;
+                    break;
+                }
+            }
+            if ($existsInOneOnly === true) {
+                $indexes[] = $schemaOneGlobalSecondaryIndex;
+            }
+        }
+        return $indexes;
     }
 
 }
