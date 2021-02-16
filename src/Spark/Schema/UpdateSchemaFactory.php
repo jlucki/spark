@@ -48,6 +48,15 @@ class UpdateSchemaFactory
     /** @var array<string, mixed> */
     private array $updateSchema;
 
+    /** @var array<string, mixed> */
+    private array $newGlobalSecondaryIndexes;
+
+    /** @var array<string, mixed> */
+    private array $deletedGlobalSecondaryIndexes;
+
+    /** @var array<string, mixed> */
+    private array $updatedGlobalSecondaryIndexes;
+
     public function __construct(
         /** @var array<string, mixed> */
         private array $describedSchema,
@@ -66,11 +75,23 @@ class UpdateSchemaFactory
         return $this->updateSchema;
     }
 
+    /**
+     * @throws Exception
+     */
     private function renderUpdateSchema(): void
     {
         $this->setSchemaSkeleton();
+        
+        $this->determineGlobalSecondaryIndexChanges();
 
         $this->generateSchemaVariation();
+    }
+
+    private function determineGlobalSecondaryIndexChanges(): void
+    {
+        $this->newGlobalSecondaryIndexes = $this->getIndexesDiff($this->currentSchema, $this->describedSchema);
+        $this->deletedGlobalSecondaryIndexes = $this->getIndexesDiff($this->describedSchema, $this->currentSchema);
+        $this->updatedGlobalSecondaryIndexes = $this->getUpdatedIndexes();
     }
 
     private function setSchemaSkeleton()
@@ -145,26 +166,24 @@ class UpdateSchemaFactory
 
     private function setGlobalSecondaryIndexes(): void
     {
-        foreach ($this->getIndexesDiff($this->currentSchema, $this->describedSchema) as $newSecondaryIndex) {
+
+        foreach ($this->newGlobalSecondaryIndexes as $newSecondaryIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
                 'Create' => $newSecondaryIndex,
             ];
         }
 
-        foreach ($this->getIndexesDiff($this->describedSchema, $this->currentSchema) as $deletedSecondaryIndex) {
+        foreach ($this->deletedGlobalSecondaryIndexes as $deletedSecondaryIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
                 'Delete' => [
                     'IndexName' => $deletedSecondaryIndex['IndexName'],
                 ],
             ];
         }
-
-        $updatedParameters = $this->getArrayDiff($this->currentSchema['GlobalSecondaryIndexes'], $this->describedSchema['GlobalSecondaryIndexes']);
-        foreach ($updatedParameters as $updatedParameter) {
+        
+        foreach ($this->updatedGlobalSecondaryIndexes as $updatedIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
-                'Update' => [
-                    'IndexName' => '',
-                ],
+                'Update' => $updatedIndex,
             ];
         }
     }
@@ -230,6 +249,64 @@ class UpdateSchemaFactory
             }
         }
         return $indexes;
+    }
+
+    /**
+     * @return array
+     */
+    private function getUpdatedIndexes(): array
+    {
+        $updatedIndexes = [];
+
+        $currentGlobalSecondaryIndexes = $this->currentSchema['GlobalSecondaryIndexes'];
+        $describedGlobalSecondaryIndexes = $this->describedSchema['GlobalSecondaryIndexes'];
+
+        foreach ($currentGlobalSecondaryIndexes as $currentGlobalSecondaryIndex) {
+            $isNew = $this->arrayHasKeyValue($this->newGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
+            $isDeleted = $this->arrayHasKeyValue($this->deletedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
+            if ($isNew === true || $isDeleted === true) {
+                continue;
+            }
+            $describedVersion = $this->getSubArrayByKeyValue($describedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
+            $diff = $this->getArrayDiff([$currentGlobalSecondaryIndex], [$describedVersion]);
+            if (count($diff) > 0) {
+                $updatedIndexes[] = $diff[0];
+            }
+        }
+
+        return $updatedIndexes;
+    }
+
+    /**
+     * @param array $array
+     * @param string $key
+     * @param mixed $value
+     * @return bool
+     */
+    private function arrayHasKeyValue(array $array, string $key, mixed $value): bool
+    {
+        foreach ($array as $item) {
+            if (isset($item[$key]) === true && $item[$key] === $value) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @param array $array
+     * @param string $key
+     * @param mixed $value
+     * @return array|null
+     */
+    private function getSubArrayByKeyValue(array $array, string $key, mixed $value): ?array
+    {
+        foreach ($array as $item) {
+            if (isset($item[$key]) === true && $item[$key] === $value) {
+                return $item;
+            }
+        }
+        return null;
     }
 
 }
