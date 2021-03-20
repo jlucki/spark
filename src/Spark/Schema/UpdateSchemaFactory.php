@@ -61,7 +61,7 @@ class UpdateSchemaFactory
         /** @var array<string, mixed> */
         private array $describedSchema,
         /** @var array<string, mixed> */
-        private array $currentSchema,
+        private array $objectSchema,
     ) {
         $this->tidyDescribedSchema();
         $this->renderUpdateSchema();
@@ -81,7 +81,7 @@ class UpdateSchemaFactory
     private function renderUpdateSchema(): void
     {
         $this->setSchemaSkeleton();
-        
+
         $this->determineGlobalSecondaryIndexChanges();
 
         $this->generateSchemaVariation();
@@ -89,33 +89,16 @@ class UpdateSchemaFactory
 
     private function determineGlobalSecondaryIndexChanges(): void
     {
-        $this->newGlobalSecondaryIndexes = $this->getIndexesDiff($this->currentSchema, $this->describedSchema);
-        $this->deletedGlobalSecondaryIndexes = $this->getIndexesDiff($this->describedSchema, $this->currentSchema);
+        $this->newGlobalSecondaryIndexes = $this->getIndexesDiff($this->objectSchema, $this->describedSchema);
+        $this->deletedGlobalSecondaryIndexes = $this->getIndexesDiff($this->describedSchema, $this->objectSchema);
         $this->updatedGlobalSecondaryIndexes = $this->getUpdatedIndexes();
     }
 
     private function setSchemaSkeleton()
     {
         $schemaSkeleton = [
-            'TableName' => $this->currentSchema['TableName'],
+            'TableName' => $this->objectSchema['TableName'],
         ];
-
-        $provisionedThroughput = [];
-
-        if ($this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'] !== $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits']) {
-            $readCapacityUnits = $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'];
-            $provisionedThroughput['ReadCapacityUnits'] = $readCapacityUnits;
-        }
-
-
-        if ($this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'] !== $this->describedSchema['ProvisionedThroughput']['WriteCapacityUnits']) {
-            $writeCapacityUnits = $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'];
-            $provisionedThroughput['WriteCapacityUnits'] = $writeCapacityUnits;
-        }
-
-        if (count($provisionedThroughput) > 0) {
-            $schemaSkeleton['ProvisionedThroughput'] = $provisionedThroughput;
-        }
 
         $this->updateSchema = $schemaSkeleton;
     }
@@ -137,7 +120,7 @@ class UpdateSchemaFactory
      */
     private function setTableName(): void
     {
-        if ($this->currentSchema['TableName'] !== $this->describedSchema['TableName']) {
+        if ($this->objectSchema['TableName'] !== $this->describedSchema['TableName']) {
             throw new Exception('updateTable doesn\'t support changing the table name');
         }
     }
@@ -147,7 +130,7 @@ class UpdateSchemaFactory
      */
     private function setKeySchema(): void
     {
-        $diff = $this->getArrayDiff($this->currentSchema['KeySchema'], $this->describedSchema['KeySchema']);
+        $diff = $this->getArrayDiff($this->objectSchema['KeySchema'], $this->describedSchema['KeySchema']);
         if (count($diff) > 0) {
             throw new Exception('updateTable doesn\'t support changing the table key schema');
         }
@@ -155,18 +138,43 @@ class UpdateSchemaFactory
 
     private function setAttributeDefinitions(): void
     {
-        $this->updateSchema['AttributeDefinitions'] = $this->currentSchema['AttributeDefinitions'];
+        $this->updateSchema['AttributeDefinitions'] = $this->objectSchema['AttributeDefinitions'];
     }
 
     private function setProvisionThroughput(): void
     {
-        $this->updateSchema['ProvisionedThroughput']['ReadCapacityUnits'] = $this->currentSchema['ProvisionedThroughput']['ReadCapacityUnits'];
-        $this->updateSchema['ProvisionedThroughput']['WriteCapacityUnits'] = $this->currentSchema['ProvisionedThroughput']['WriteCapacityUnits'];
+        $provisionedThroughput = [];
+
+        $currentOnDemand = isset($this->objectSchema['ProvisionedThroughput']['OnDemand']) ? $this->objectSchema['ProvisionedThroughput']['OnDemand'] : false;
+        $describedOnDemand = isset($this->describedSchema['ProvisionedThroughput']['OnDemand']) ? $this->describedSchema['ProvisionedThroughput']['OnDemand'] : false;
+
+        $onDemandChanged = $currentOnDemand !== $describedOnDemand;
+
+        if ($onDemandChanged === true) {
+            $provisionedThroughput['OnDemand'] = $currentOnDemand;
+        }
+
+        $currentReadCapacityUnits = $this->objectSchema['ProvisionedThroughput']['ReadCapacityUnits'];
+        $describedReadCapacityUnits = $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits'];
+
+        if ($currentReadCapacityUnits !== $describedReadCapacityUnits || $onDemandChanged === true) {
+            $provisionedThroughput['ReadCapacityUnits'] = $currentReadCapacityUnits;
+        }
+
+        $currentWriteCapacityUnits = $this->objectSchema['ProvisionedThroughput']['WriteCapacityUnits'];
+        $describedWriteCapacityUnits = $this->describedSchema['ProvisionedThroughput']['WriteCapacityUnits'];
+
+        if ($currentWriteCapacityUnits !== $describedWriteCapacityUnits || $onDemandChanged === true) {
+            $provisionedThroughput['WriteCapacityUnits'] = $currentWriteCapacityUnits;
+        }
+
+        if (count($provisionedThroughput) > 0) {
+            $this->updateSchema['ProvisionedThroughput'] = $provisionedThroughput;
+        }
     }
 
     private function setGlobalSecondaryIndexes(): void
     {
-
         foreach ($this->newGlobalSecondaryIndexes as $newSecondaryIndex) {
             $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
                 'Create' => $newSecondaryIndex,
@@ -181,11 +189,11 @@ class UpdateSchemaFactory
             ];
         }
         
-        foreach ($this->updatedGlobalSecondaryIndexes as $updatedIndex) {
-            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
-                'Update' => $updatedIndex,
-            ];
-        }
+//        foreach ($this->updatedGlobalSecondaryIndexes as $updatedIndex) {
+//            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
+//                'Update' => $updatedIndex,
+//            ];
+//        }
     }
 
     /**
@@ -200,18 +208,42 @@ class UpdateSchemaFactory
     /**
      * @param array $parameters
      * @param array $supportedParameters
+     * @param bool $isRecursiveParameter
      * @return array
      */
-    private function removeUnsupportedParameters(array $parameters, array $supportedParameters): array
+    private function removeUnsupportedParameters(array $parameters, array $supportedParameters, bool $isRecursiveParameter = false): array
     {
-        foreach ($parameters as $parameter => $content) {
-            if (in_array($parameter, array_keys($supportedParameters)) === false) {
-                unset($parameters[$parameter]);
-            } elseif (is_array($content) === true && is_array($supportedParameters[$parameter]) === true) {
-                $parameters[$parameter] = $this->removeUnsupportedParameters($content, $supportedParameters[$parameter]);
+        if ($isRecursiveParameter === true) {
+            foreach ($parameters as $parameter => $content) {
+                $parameters[$parameter] = $this->removeUnsupportedParameters($content, $supportedParameters[0]);
+            }
+        } else {
+            foreach ($parameters as $parameter => $content) {
+                if (is_array($parameter) === false && in_array($parameter, array_keys($supportedParameters)) === false) {
+                    unset($parameters[$parameter]);
+                } elseif (is_array($content) === true && is_array($supportedParameters[$parameter]) === true) {
+                    $isRecursiveParameter = $this->isRecursiveParameter($supportedParameters, $parameter);
+                    $parameters[$parameter] = $this->removeUnsupportedParameters($content, $supportedParameters[$parameter], $isRecursiveParameter);
+                }
             }
         }
         return $parameters;
+    }
+
+    /**
+     * @param array $supportedParameters
+     * @param mixed $parameter
+     * @return bool
+     */
+    private function isRecursiveParameter(array $supportedParameters, mixed $parameter): bool
+    {
+        if (isset($supportedParameters[$parameter]) === true) {
+            $supportedParameter = $supportedParameters[$parameter];
+            if (is_array($supportedParameter) === true) {
+                return count($supportedParameter) !== count($supportedParameter, COUNT_RECURSIVE);
+            }
+        }
+        return false;
     }
 
     /**
@@ -258,7 +290,7 @@ class UpdateSchemaFactory
     {
         $updatedIndexes = [];
 
-        $currentGlobalSecondaryIndexes = $this->currentSchema['GlobalSecondaryIndexes'];
+        $currentGlobalSecondaryIndexes = $this->objectSchema['GlobalSecondaryIndexes'];
         $describedGlobalSecondaryIndexes = $this->describedSchema['GlobalSecondaryIndexes'];
 
         foreach ($currentGlobalSecondaryIndexes as $currentGlobalSecondaryIndex) {

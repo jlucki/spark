@@ -117,7 +117,7 @@ class TableOperator
     {
         $item = $this->getItemObject($itemClass);
 
-        $currentSchema = $item->getSchema();
+        $objectSchema = $item->getSchema();
 
         $describedTable = $this->client->describeTable([
             'TableName' => $item->getTableName(),
@@ -125,7 +125,9 @@ class TableOperator
 
         $describedSchema = $describedTable['Table'];
 
-        return (new UpdateSchemaFactory($describedSchema, $currentSchema))->getUpdateSchema();
+        $updateSchema = (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
+
+        return (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
     }
 
 }
