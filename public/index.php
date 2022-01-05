@@ -16,6 +16,8 @@ $spark = new Spark(
     secret: '', // Not required for local dev
 );
 
+// $spark->deleteTable(Article::class);
+
 try {
     $table = $spark->getTable(Article::class);
 } catch (TableDoesNotExistException) {

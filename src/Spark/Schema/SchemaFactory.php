@@ -41,15 +41,21 @@ class SchemaFactory
 
     private bool $onDemand;
 
+    /** @var array<string, array> */
+    private array $secondaryIndexAttributeSchemas = [];
+
     /** @var array<string, mixed> */
     private array $schema;
 
     /** @var ReflectionClass<ItemInterface> */
     private ReflectionClass $reflectionClass;
 
+    private Validator $validator;
+
     public function __construct(
         private ItemInterface $item,
     ) {
+        $this->validator = new Validator();
         $this->reflectionClass = new ReflectionClass($this->item);
         $this->setRequiredDefaults();
         $this->renderSchema();
@@ -136,16 +142,16 @@ class SchemaFactory
     {
         $properties = $this->reflectionClass->getProperties();
 
-        $validator = new Validator();
-
         foreach ($properties as $property) {
-            if ($validator->isPrimaryKey($property) === true) {
+            if ($this->validator->isPrimaryKey($property) === true) {
                 $this->setSchemaAttributeDefinition($property->getAttributes());
             }
-            if ($validator->isGlobalSecondaryIndex($property) === true) {
-                $this->setGlobalSecondaryIndexes($property->getAttributes());
+            if ($this->validator->isGlobalSecondaryIndex($property) === true) {
+                $this->resolveGlobalSecondaryIndex($property->getAttributes());
             }
         }
+
+        $this->setGlobalSecondaryIndexes();
     }
 
     /**
@@ -198,7 +204,7 @@ class SchemaFactory
     /**
      * @param array<ReflectionAttribute> $reflectionAttributes
      */
-    private function setGlobalSecondaryIndexes(array $reflectionAttributes): void
+    private function resolveGlobalSecondaryIndex(array $reflectionAttributes): void
     {
         $attributeDefinition = [];
         $readCapacityUnits = Defaults::DEFAULT_READ_CAPACITY_UNITS;
@@ -213,7 +219,7 @@ class SchemaFactory
                 case AttributeType::class:
                 case ProjectionTypeAttribute::class:
                 case NonKeyAttributes::class:
-                case OnDemand::class:
+                // case OnDemand::class:
                     $attributeDefinition[$qualifiedName] = $argumentValue;
                     break;
                 case GlobalSecondaryIndex::class:
@@ -238,10 +244,10 @@ class SchemaFactory
         $provisionedThroughput = [
             'ReadCapacityUnits' => $readCapacityUnits,
             'WriteCapacityUnits' => $writeCapacityUnits,
-            'OnDemand' => $attributeDefinition[OnDemand::class] ?? false,
+            // 'OnDemand' => $attributeDefinition[OnDemand::class] ?? false,
         ];
 
-        $this->schema['GlobalSecondaryIndexes'][] = [
+        $this->secondaryIndexAttributeSchemas[$indexName][] = [
             'IndexName' => $indexName,
             'KeySchema' => [
                 (new KeySchema($attributeDefinition))->getArray(),
@@ -249,6 +255,35 @@ class SchemaFactory
             'Projection' => (new Projection($attributeDefinition))->getArray(),
             'ProvisionedThroughput' => $provisionedThroughput,
         ];
+    }
+
+    private function setGlobalSecondaryIndexes(): void
+    {
+        foreach ($this->secondaryIndexAttributeSchemas as $secondaryIndexAttributeSchema) {
+            if ($this->validator->isValidSecondaryIndexAttributeSchema($secondaryIndexAttributeSchema) === true) {
+                if (count($secondaryIndexAttributeSchema) > 1) {
+                    $this->schema['GlobalSecondaryIndexes'][] = $this->mergeSecondaryIndexSchemas($secondaryIndexAttributeSchema);
+                } else {
+                    $this->schema['GlobalSecondaryIndexes'][] = reset($secondaryIndexAttributeSchema);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array $secondaryIndexAttributeSchema
+     * @return array
+     */
+    private function mergeSecondaryIndexSchemas(array $secondaryIndexAttributeSchema): array
+    {
+        $mergedSchema = [];
+        foreach ($secondaryIndexAttributeSchema as $secondaryIndexAttributeSchemaValue) {
+            $mergedSchema['IndexName'] ??= $secondaryIndexAttributeSchemaValue['IndexName'];
+            $mergedSchema['KeySchema'][] = $secondaryIndexAttributeSchemaValue['KeySchema'];
+            $mergedSchema['Projection'] ??= $secondaryIndexAttributeSchemaValue['Projection'];
+            $mergedSchema['ProvisionedThroughput'] ??= $secondaryIndexAttributeSchemaValue['ProvisionedThroughput'];
+        }
+        return $mergedSchema;
     }
 
 }

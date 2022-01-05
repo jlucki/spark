@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JLucki\ODM\Spark\Schema;
 
 use Exception;
+use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use function count;
 
 /**
@@ -116,23 +117,23 @@ class UpdateSchemaFactory
     }
 
     /**
-     * @throws Exception
+     * @throws TableUpdateFailedException
      */
     private function setTableName(): void
     {
         if ($this->objectSchema['TableName'] !== $this->describedSchema['TableName']) {
-            throw new Exception('updateTable doesn\'t support changing the table name');
+            throw new TableUpdateFailedException('updateTable doesn\'t support changing the table name');
         }
     }
 
     /**
-     * @throws Exception
+     * @throws TableUpdateFailedException
      */
     private function setKeySchema(): void
     {
         $diff = $this->getArrayDiff($this->objectSchema['KeySchema'], $this->describedSchema['KeySchema']);
         if (count($diff) > 0) {
-            throw new Exception('updateTable doesn\'t support changing the table key schema');
+            throw new TableUpdateFailedException('updateTable doesn\'t support changing the table key schema');
         }
     }
 
@@ -141,6 +142,9 @@ class UpdateSchemaFactory
         $this->updateSchema['AttributeDefinitions'] = $this->objectSchema['AttributeDefinitions'];
     }
 
+    /**
+     * @throws TableUpdateFailedException
+     */
     private function setProvisionThroughput(): void
     {
         $provisionedThroughput = [];
@@ -148,23 +152,21 @@ class UpdateSchemaFactory
         $currentOnDemand = isset($this->objectSchema['ProvisionedThroughput']['OnDemand']) ? $this->objectSchema['ProvisionedThroughput']['OnDemand'] : false;
         $describedOnDemand = isset($this->describedSchema['ProvisionedThroughput']['OnDemand']) ? $this->describedSchema['ProvisionedThroughput']['OnDemand'] : false;
 
-        $onDemandChanged = $currentOnDemand !== $describedOnDemand;
-
-        if ($onDemandChanged === true) {
-            $provisionedThroughput['OnDemand'] = $currentOnDemand;
+        if ($currentOnDemand !== $describedOnDemand) {
+            throw new TableUpdateFailedException('updateTable does not support changing the capacity mode');
         }
 
         $currentReadCapacityUnits = $this->objectSchema['ProvisionedThroughput']['ReadCapacityUnits'];
         $describedReadCapacityUnits = $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits'];
 
-        if ($currentReadCapacityUnits !== $describedReadCapacityUnits || $onDemandChanged === true) {
+        if ($currentReadCapacityUnits !== $describedReadCapacityUnits) {
             $provisionedThroughput['ReadCapacityUnits'] = $currentReadCapacityUnits;
         }
 
         $currentWriteCapacityUnits = $this->objectSchema['ProvisionedThroughput']['WriteCapacityUnits'];
         $describedWriteCapacityUnits = $this->describedSchema['ProvisionedThroughput']['WriteCapacityUnits'];
 
-        if ($currentWriteCapacityUnits !== $describedWriteCapacityUnits || $onDemandChanged === true) {
+        if ($currentWriteCapacityUnits !== $describedWriteCapacityUnits) {
             $provisionedThroughput['WriteCapacityUnits'] = $currentWriteCapacityUnits;
         }
 
@@ -189,11 +191,11 @@ class UpdateSchemaFactory
             ];
         }
         
-//        foreach ($this->updatedGlobalSecondaryIndexes as $updatedIndex) {
-//            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
-//                'Update' => $updatedIndex,
-//            ];
-//        }
+        foreach ($this->updatedGlobalSecondaryIndexes as $updatedIndex) {
+            $this->updateSchema['GlobalSecondaryIndexUpdates'][] = [
+                'Update' => $updatedIndex,
+            ];
+        }
     }
 
     /**
@@ -294,11 +296,14 @@ class UpdateSchemaFactory
         $describedGlobalSecondaryIndexes = $this->describedSchema['GlobalSecondaryIndexes'];
 
         foreach ($currentGlobalSecondaryIndexes as $currentGlobalSecondaryIndex) {
+            // we're only interested in indexes that exist on both the described
+            // and object schemas to determine if the index was modified
             $isNew = $this->arrayHasKeyValue($this->newGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
             $isDeleted = $this->arrayHasKeyValue($this->deletedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
             if ($isNew === true || $isDeleted === true) {
                 continue;
             }
+            // TODO: don't include ProvisionedThroughput if it hasn't changed, or the AWS SDK will throw an error
             $describedVersion = $this->getSubArrayByKeyValue($describedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
             $diff = $this->getArrayDiff([$currentGlobalSecondaryIndex], [$describedVersion]);
             if (count($diff) > 0) {

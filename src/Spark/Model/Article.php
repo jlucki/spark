@@ -27,9 +27,9 @@ use DateTime;
 
 #[
     TableName('Articles'),
-    ReadCapacityUnits(11),
-    WriteCapacityUnits(11),
-    OnDemand,
+    ReadCapacityUnits(12),
+    WriteCapacityUnits(12),
+    OnDemand(false),
 ]
 class Article extends Item
 {
@@ -57,7 +57,6 @@ class Article extends Item
         NonKeyAttributes(['title', 'datetime']),
         ReadCapacityUnits(10),
         WriteCapacityUnits(10),
-        OnDemand,
     ]
     private string $slug;
 
@@ -65,11 +64,19 @@ class Article extends Item
         KeyType('HASH'),
         AttributeName('newSlug'),
         AttributeType('S'),
-        GlobalSecondaryIndex,
+        GlobalSecondaryIndex('newSlug'),
         ProjectionType(ProjectionType::ALL),
-        OnDemand,
     ]
     private string $newSlug;
+
+    #[
+        KeyType('RANGE'),
+        AttributeName('slugDatetime'),
+        AttributeType('N'),
+        GlobalSecondaryIndex('newSlug'),
+        ProjectionType(ProjectionType::ALL),
+    ]
+    private DateTime $newSlugDatetime;
 
     #[
         OpenAttribute('title'),
@@ -191,6 +198,24 @@ class Article extends Item
     public function setPublished(bool $published): self
     {
         $this->published = $published;
+        return $this;
+    }
+
+    /**
+     * @return string
+     */
+    public function getNewSlug(): string
+    {
+        return $this->newSlug;
+    }
+
+    /**
+     * @param string $newSlug
+     * @return $this
+     */
+    public function setNewSlug(string $newSlug): self
+    {
+        $this->newSlug = $newSlug;
         return $this;
     }
 

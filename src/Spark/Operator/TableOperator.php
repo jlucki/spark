@@ -16,7 +16,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TableOperator
 {
-
     use OperatorTrait;
 
     public function __construct(
@@ -117,15 +116,17 @@ class TableOperator
     {
         $item = $this->getItemObject($itemClass);
 
+        // this is the object schema of the current model class file
         $objectSchema = $item->getSchema();
 
         $describedTable = $this->client->describeTable([
             'TableName' => $item->getTableName(),
         ]);
 
+        // this is the object scheme of the current DynamoDB table
         $describedSchema = $describedTable['Table'];
 
-        $updateSchema = (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
+        // $updateSchema = (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
 
         return (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
     }
