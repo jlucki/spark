@@ -10,7 +10,7 @@ use JLucki\ODM\Spark\Exception\TableAlreadyExistsException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
 use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Model\Base\Table;
-use JLucki\ODM\Spark\Schema\UpdateSchemaFactory;
+use JLucki\ODM\Spark\Schema\Factory\UpdateSchemaFactory;
 use JLucki\ODM\Spark\Trait\OperatorTrait;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -98,6 +98,10 @@ class TableOperator
         $schema = $this->getSchema($itemClass);
 
         try {
+            // TODO:    GSI update errors without ProvisionedThroughput, but also
+            //          errors with ProvisionedThroughput when it's unchanged.
+            //          Need to see if there's a way to actually do this or it's not supported.
+
             $result = $this->client->updateTable($updateSchema);
         } catch (DynamoDbException $e) {
             $message = "Unable to update table:\n";
@@ -117,7 +121,7 @@ class TableOperator
         $item = $this->getItemObject($itemClass);
 
         // this is the object schema of the current model class file
-        $objectSchema = $item->getSchema();
+        $localSchema = $item->getSchema();
 
         $describedTable = $this->client->describeTable([
             'TableName' => $item->getTableName(),
@@ -126,9 +130,7 @@ class TableOperator
         // this is the object scheme of the current DynamoDB table
         $describedSchema = $describedTable['Table'];
 
-        // $updateSchema = (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
-
-        return (new UpdateSchemaFactory($describedSchema, $objectSchema))->getUpdateSchema();
+        return (new UpdateSchemaFactory($describedSchema, $localSchema))->getUpdateSchema();
     }
 
 }

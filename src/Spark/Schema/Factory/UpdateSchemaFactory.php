@@ -2,10 +2,12 @@
 
 declare(strict_types=1);
 
-namespace JLucki\ODM\Spark\Schema;
+namespace JLucki\ODM\Spark\Schema\Factory;
 
 use Exception;
 use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
+use JLucki\ODM\Spark\Schema\Helper\ArrayHelper;
+use JLucki\ODM\Spark\Schema\Resolver\GlobalSecondaryIndexResolver;
 use function count;
 
 /**
@@ -62,7 +64,7 @@ class UpdateSchemaFactory
         /** @var array<string, mixed> */
         private array $describedSchema,
         /** @var array<string, mixed> */
-        private array $objectSchema,
+        private array $localSchema,
     ) {
         $this->tidyDescribedSchema();
         $this->renderUpdateSchema();
@@ -82,23 +84,26 @@ class UpdateSchemaFactory
     private function renderUpdateSchema(): void
     {
         $this->setSchemaSkeleton();
-
-        $this->determineGlobalSecondaryIndexChanges();
-
+        $this->resolveGlobalSecondaryIndexes();
         $this->generateSchemaVariation();
     }
 
-    private function determineGlobalSecondaryIndexChanges(): void
+    private function resolveGlobalSecondaryIndexes(): void
     {
-        $this->newGlobalSecondaryIndexes = $this->getIndexesDiff($this->objectSchema, $this->describedSchema);
-        $this->deletedGlobalSecondaryIndexes = $this->getIndexesDiff($this->describedSchema, $this->objectSchema);
-        $this->updatedGlobalSecondaryIndexes = $this->getUpdatedIndexes();
+        $resolver = (new GlobalSecondaryIndexResolver())
+            ->setLocalSchema($this->localSchema)
+            ->setDescribedSchema($this->describedSchema)
+            ->resolve();
+
+        $this->newGlobalSecondaryIndexes = $resolver->getNewGlobalSecondaryIndexes();
+        $this->deletedGlobalSecondaryIndexes = $resolver->getDeletedGlobalSecondaryIndexes();
+        $this->updatedGlobalSecondaryIndexes = $resolver->getUpdatedGlobalSecondaryIndexes();
     }
 
     private function setSchemaSkeleton()
     {
         $schemaSkeleton = [
-            'TableName' => $this->objectSchema['TableName'],
+            'TableName' => $this->localSchema['TableName'],
         ];
 
         $this->updateSchema = $schemaSkeleton;
@@ -121,7 +126,7 @@ class UpdateSchemaFactory
      */
     private function setTableName(): void
     {
-        if ($this->objectSchema['TableName'] !== $this->describedSchema['TableName']) {
+        if ($this->localSchema['TableName'] !== $this->describedSchema['TableName']) {
             throw new TableUpdateFailedException('updateTable doesn\'t support changing the table name');
         }
     }
@@ -131,7 +136,7 @@ class UpdateSchemaFactory
      */
     private function setKeySchema(): void
     {
-        $diff = $this->getArrayDiff($this->objectSchema['KeySchema'], $this->describedSchema['KeySchema']);
+        $diff = ArrayHelper::getArrayDiff($this->localSchema['KeySchema'], $this->describedSchema['KeySchema']);
         if (count($diff) > 0) {
             throw new TableUpdateFailedException('updateTable doesn\'t support changing the table key schema');
         }
@@ -139,7 +144,7 @@ class UpdateSchemaFactory
 
     private function setAttributeDefinitions(): void
     {
-        $this->updateSchema['AttributeDefinitions'] = $this->objectSchema['AttributeDefinitions'];
+        $this->updateSchema['AttributeDefinitions'] = $this->localSchema['AttributeDefinitions'];
     }
 
     /**
@@ -149,21 +154,21 @@ class UpdateSchemaFactory
     {
         $provisionedThroughput = [];
 
-        $currentOnDemand = isset($this->objectSchema['ProvisionedThroughput']['OnDemand']) ? $this->objectSchema['ProvisionedThroughput']['OnDemand'] : false;
+        $currentOnDemand = isset($this->localSchema['ProvisionedThroughput']['OnDemand']) ? $this->localSchema['ProvisionedThroughput']['OnDemand'] : false;
         $describedOnDemand = isset($this->describedSchema['ProvisionedThroughput']['OnDemand']) ? $this->describedSchema['ProvisionedThroughput']['OnDemand'] : false;
 
         if ($currentOnDemand !== $describedOnDemand) {
             throw new TableUpdateFailedException('updateTable does not support changing the capacity mode');
         }
 
-        $currentReadCapacityUnits = $this->objectSchema['ProvisionedThroughput']['ReadCapacityUnits'];
+        $currentReadCapacityUnits = $this->localSchema['ProvisionedThroughput']['ReadCapacityUnits'];
         $describedReadCapacityUnits = $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits'];
 
         if ($currentReadCapacityUnits !== $describedReadCapacityUnits) {
             $provisionedThroughput['ReadCapacityUnits'] = $currentReadCapacityUnits;
         }
 
-        $currentWriteCapacityUnits = $this->objectSchema['ProvisionedThroughput']['WriteCapacityUnits'];
+        $currentWriteCapacityUnits = $this->localSchema['ProvisionedThroughput']['WriteCapacityUnits'];
         $describedWriteCapacityUnits = $this->describedSchema['ProvisionedThroughput']['WriteCapacityUnits'];
 
         if ($currentWriteCapacityUnits !== $describedWriteCapacityUnits) {
@@ -208,12 +213,28 @@ class UpdateSchemaFactory
     }
 
     /**
+     * @param array $supportedParameters
+     * @param mixed $parameter
+     * @return bool
+     */
+    public function isRecursiveParameter(array $supportedParameters, mixed $parameter): bool
+    {
+        if (isset($supportedParameters[$parameter]) === true) {
+            $supportedParameter = $supportedParameters[$parameter];
+            if (is_array($supportedParameter) === true) {
+                return count($supportedParameter) !== count($supportedParameter, COUNT_RECURSIVE);
+            }
+        }
+        return false;
+    }
+
+    /**
      * @param array $parameters
      * @param array $supportedParameters
      * @param bool $isRecursiveParameter
      * @return array
      */
-    private function removeUnsupportedParameters(array $parameters, array $supportedParameters, bool $isRecursiveParameter = false): array
+    public function removeUnsupportedParameters(array $parameters, array $supportedParameters, bool $isRecursiveParameter = false): array
     {
         if ($isRecursiveParameter === true) {
             foreach ($parameters as $parameter => $content) {
@@ -231,119 +252,4 @@ class UpdateSchemaFactory
         }
         return $parameters;
     }
-
-    /**
-     * @param array $supportedParameters
-     * @param mixed $parameter
-     * @return bool
-     */
-    private function isRecursiveParameter(array $supportedParameters, mixed $parameter): bool
-    {
-        if (isset($supportedParameters[$parameter]) === true) {
-            $supportedParameter = $supportedParameters[$parameter];
-            if (is_array($supportedParameter) === true) {
-                return count($supportedParameter) !== count($supportedParameter, COUNT_RECURSIVE);
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param array $first
-     * @param array $second
-     * @return array
-     */
-    private function getArrayDiff(array $first, array $second): array
-    {
-        return array_udiff_assoc($first, $second, function($a, $b) {
-            return intval($a !== $b);
-        });
-    }
-
-    /**
-     * Returns indexes that exist in $schemaOne, but not in $schemaTwo
-     *
-     * @param array $schemaOne
-     * @param array $schemaTwo
-     * @return array
-     */
-    private function getIndexesDiff(array $schemaOne, array $schemaTwo): array
-    {
-        $indexes = [];
-        foreach ($schemaOne['GlobalSecondaryIndexes'] as $schemaOneGlobalSecondaryIndex) {
-            $existsInOneOnly = true;
-            foreach ($schemaTwo['GlobalSecondaryIndexes'] as $schemaTwoGlobalSecondaryIndex) {
-                if ($schemaOneGlobalSecondaryIndex['IndexName'] === $schemaTwoGlobalSecondaryIndex['IndexName']) {
-                    $existsInOneOnly = false;
-                    break;
-                }
-            }
-            if ($existsInOneOnly === true) {
-                $indexes[] = $schemaOneGlobalSecondaryIndex;
-            }
-        }
-        return $indexes;
-    }
-
-    /**
-     * @return array
-     */
-    private function getUpdatedIndexes(): array
-    {
-        $updatedIndexes = [];
-
-        $currentGlobalSecondaryIndexes = $this->objectSchema['GlobalSecondaryIndexes'];
-        $describedGlobalSecondaryIndexes = $this->describedSchema['GlobalSecondaryIndexes'];
-
-        foreach ($currentGlobalSecondaryIndexes as $currentGlobalSecondaryIndex) {
-            // we're only interested in indexes that exist on both the described
-            // and object schemas to determine if the index was modified
-            $isNew = $this->arrayHasKeyValue($this->newGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
-            $isDeleted = $this->arrayHasKeyValue($this->deletedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
-            if ($isNew === true || $isDeleted === true) {
-                continue;
-            }
-            // TODO: don't include ProvisionedThroughput if it hasn't changed, or the AWS SDK will throw an error
-            $describedVersion = $this->getSubArrayByKeyValue($describedGlobalSecondaryIndexes, 'IndexName', $currentGlobalSecondaryIndex['IndexName']);
-            $diff = $this->getArrayDiff([$currentGlobalSecondaryIndex], [$describedVersion]);
-            if (count($diff) > 0) {
-                $updatedIndexes[] = $diff[0];
-            }
-        }
-
-        return $updatedIndexes;
-    }
-
-    /**
-     * @param array $array
-     * @param string $key
-     * @param mixed $value
-     * @return bool
-     */
-    private function arrayHasKeyValue(array $array, string $key, mixed $value): bool
-    {
-        foreach ($array as $item) {
-            if (isset($item[$key]) === true && $item[$key] === $value) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
-     * @param array $array
-     * @param string $key
-     * @param mixed $value
-     * @return array|null
-     */
-    private function getSubArrayByKeyValue(array $array, string $key, mixed $value): ?array
-    {
-        foreach ($array as $item) {
-            if (isset($item[$key]) === true && $item[$key] === $value) {
-                return $item;
-            }
-        }
-        return null;
-    }
-
 }

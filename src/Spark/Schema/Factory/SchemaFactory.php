@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JLucki\ODM\Spark\Schema;
+namespace JLucki\ODM\Spark\Schema\Factory;
 
 use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\AttributeType;
@@ -17,6 +17,10 @@ use JLucki\ODM\Spark\Attribute\TableName;
 use JLucki\ODM\Spark\Attribute\WriteCapacityUnits;
 use JLucki\ODM\Spark\Constant\Defaults;
 use JLucki\ODM\Spark\Interface\ItemInterface;
+use JLucki\ODM\Spark\Schema\AttributeDefinition;
+use JLucki\ODM\Spark\Schema\KeySchema;
+use JLucki\ODM\Spark\Schema\Projection;
+use JLucki\ODM\Spark\Schema\Skeleton;
 use JLucki\ODM\Spark\Validation\Validator;
 use ReflectionAttribute;
 use ReflectionClass;
