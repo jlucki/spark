@@ -283,7 +283,7 @@ class SchemaFactory
         $mergedSchema = [];
         foreach ($secondaryIndexAttributeSchema as $secondaryIndexAttributeSchemaValue) {
             $mergedSchema['IndexName'] ??= $secondaryIndexAttributeSchemaValue['IndexName'];
-            $mergedSchema['KeySchema'][] = $secondaryIndexAttributeSchemaValue['KeySchema'];
+            $mergedSchema['KeySchema'][] = reset($secondaryIndexAttributeSchemaValue['KeySchema']);
             $mergedSchema['Projection'] ??= $secondaryIndexAttributeSchemaValue['Projection'];
             $mergedSchema['ProvisionedThroughput'] ??= $secondaryIndexAttributeSchemaValue['ProvisionedThroughput'];
         }

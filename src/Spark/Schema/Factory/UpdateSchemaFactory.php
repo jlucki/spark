@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace JLucki\ODM\Spark\Schema\Factory;
 
 use Exception;
+use JLucki\ODM\Spark\Exception\NothingToUpdateException;
 use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Schema\Helper\ArrayHelper;
 use JLucki\ODM\Spark\Schema\Resolver\GlobalSecondaryIndexResolver;
@@ -29,7 +30,6 @@ class UpdateSchemaFactory
     private const SUPPORTED_PROVISIONED_THROUGHPUT_PARAMETERS = [
         'ReadCapacityUnits' => '',
         'WriteCapacityUnits' => '',
-        'OnDemand' => '',
     ];
 
     /** @var array<string, mixed> */
@@ -60,6 +60,13 @@ class UpdateSchemaFactory
     /** @var array<string, mixed> */
     private array $updatedGlobalSecondaryIndexes;
 
+    /**
+     * UpdateSchemaFactory constructor.
+     * @param array $describedSchema
+     * @param array $localSchema
+     * @throws NothingToUpdateException
+     * @throws TableUpdateFailedException
+     */
     public function __construct(
         /** @var array<string, mixed> */
         private array $describedSchema,
@@ -79,7 +86,8 @@ class UpdateSchemaFactory
     }
 
     /**
-     * @throws Exception
+     * @throws NothingToUpdateException
+     * @throws TableUpdateFailedException
      */
     private function renderUpdateSchema(): void
     {
@@ -110,7 +118,8 @@ class UpdateSchemaFactory
     }
 
     /**
-     * @throws Exception
+     * @throws NothingToUpdateException
+     * @throws TableUpdateFailedException
      */
     private function generateSchemaVariation(): void
     {
@@ -119,6 +128,7 @@ class UpdateSchemaFactory
         $this->setAttributeDefinitions();
         $this->setProvisionThroughput();
         $this->setGlobalSecondaryIndexes();
+        $this->validateSchemaVariation();
     }
 
     /**
@@ -144,22 +154,15 @@ class UpdateSchemaFactory
 
     private function setAttributeDefinitions(): void
     {
-        $this->updateSchema['AttributeDefinitions'] = $this->localSchema['AttributeDefinitions'];
+        $diff = ArrayHelper::getArrayDiff($this->localSchema['AttributeDefinitions'], $this->describedSchema['AttributeDefinitions']);
+        if (count($diff) > 0) {
+            $this->updateSchema['AttributeDefinitions'] = $this->localSchema['AttributeDefinitions'];
+        }
     }
 
-    /**
-     * @throws TableUpdateFailedException
-     */
     private function setProvisionThroughput(): void
     {
         $provisionedThroughput = [];
-
-        $currentOnDemand = isset($this->localSchema['ProvisionedThroughput']['OnDemand']) ? $this->localSchema['ProvisionedThroughput']['OnDemand'] : false;
-        $describedOnDemand = isset($this->describedSchema['ProvisionedThroughput']['OnDemand']) ? $this->describedSchema['ProvisionedThroughput']['OnDemand'] : false;
-
-        if ($currentOnDemand !== $describedOnDemand) {
-            throw new TableUpdateFailedException('updateTable does not support changing the capacity mode');
-        }
 
         $currentReadCapacityUnits = $this->localSchema['ProvisionedThroughput']['ReadCapacityUnits'];
         $describedReadCapacityUnits = $this->describedSchema['ProvisionedThroughput']['ReadCapacityUnits'];
@@ -251,5 +254,15 @@ class UpdateSchemaFactory
             }
         }
         return $parameters;
+    }
+
+    /**
+     * @throws NothingToUpdateException
+     */
+    private function validateSchemaVariation(): void
+    {
+        if (count($this->updateSchema) === 1) {
+            throw new NothingToUpdateException();
+        }
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace JLucki\ODM\Spark;
 
+use JLucki\ODM\Spark\Exception\NothingToUpdateException;
 use JLucki\ODM\Spark\Exception\TableAlreadyExistsException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
 use JLucki\ODM\Spark\Exception\ItemActionFailedException;
@@ -34,6 +35,7 @@ class Spark extends ClientConnection
     /**
      * @param string $itemClass
      * @return Table
+     * @throws NothingToUpdateException
      * @throws TableUpdateFailedException
      */
     public function updateTable(string $itemClass): Table

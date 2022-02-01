@@ -3,7 +3,9 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use JLucki\ODM\Spark\Exception\ItemActionFailedException;
+use JLucki\ODM\Spark\Exception\NothingToUpdateException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
+use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Model\Article;
 use JLucki\ODM\Spark\Query\Expression;
 use JLucki\ODM\Spark\Spark;
@@ -16,7 +18,7 @@ $spark = new Spark(
     secret: '', // Not required for local dev
 );
 
-// $spark->deleteTable(Article::class);
+//$spark->deleteTable(Article::class);
 
 try {
     $table = $spark->getTable(Article::class);
@@ -24,7 +26,11 @@ try {
     $table = $spark->createTable(Article::class);
 }
 
-$table = $spark->updateTable(Article::class);
+//try {
+//    $table = $spark->updateTable(Article::class);
+//} catch (TableUpdateFailedException|NothingToUpdateException) {
+//
+//}
 
 function getItems(Spark $spark): array
 {
@@ -53,7 +59,7 @@ function getItems(Spark $spark): array
 
 $items = getItems($spark);
 
-if (\count($items) < 4) {
+if (count($items) < 4) {
 
     $date = new DateTime();
 
