@@ -10,6 +10,8 @@ If you're looking for an easy, model driven way to get started with DynamoDB, lo
 
 Once the containers are running, simply visit `localhost` in your browser. Refresh a couple of times to get additional example blog entries. Have a look at `public/index.php` to see what's happening under the hood.
 
+You can also download the [NoSQL Workbench from AWS](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/workbench.settingup.html), to easily browse your DynamoDB data.  Once installed, open the workbench, click on `Operation builder` on the left hand side menu. Click on `+ Add connection`, switch to `DynamoDB local`, give the connection a name, leave the port on 8000, and click on `Connect`.
+
 ### Requirements
 
 This library only works with PHP 8.0 and up.
