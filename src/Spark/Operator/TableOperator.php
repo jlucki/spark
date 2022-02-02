@@ -127,7 +127,7 @@ class TableOperator
             'TableName' => $item->getTableName(),
         ]);
 
-        // this is the object scheme of the current DynamoDB table
+        // this is the object schema of the current DynamoDB table
         $describedSchema = $describedTable['Table'];
 
         return (new UpdateSchemaFactory($describedSchema, $localSchema))->getUpdateSchema();
