@@ -2,25 +2,32 @@
 
 declare(strict_types=1);
 
-namespace JLucki\ODM\Spark\Schema;
+namespace JLucki\ODM\Spark\Schema\Factory;
 
 use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\AttributeType;
 use JLucki\ODM\Spark\Attribute\GlobalSecondaryIndex;
 use JLucki\ODM\Spark\Attribute\KeyType;
+use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
+use JLucki\ODM\Spark\Attribute\OnDemand;
+use JLucki\ODM\Spark\Attribute\ProjectionType;
 use JLucki\ODM\Spark\Attribute\ProjectionType as ProjectionTypeAttribute;
 use JLucki\ODM\Spark\Attribute\ReadCapacityUnits;
 use JLucki\ODM\Spark\Attribute\TableName;
 use JLucki\ODM\Spark\Attribute\WriteCapacityUnits;
 use JLucki\ODM\Spark\Constant\Defaults;
 use JLucki\ODM\Spark\Interface\ItemInterface;
+use JLucki\ODM\Spark\Schema\AttributeDefinition;
+use JLucki\ODM\Spark\Schema\KeySchema;
+use JLucki\ODM\Spark\Schema\Projection;
+use JLucki\ODM\Spark\Schema\Skeleton;
 use JLucki\ODM\Spark\Validation\Validator;
 use ReflectionAttribute;
 use ReflectionClass;
 
 /**
- * The SchemaFactory renders a schema array for the Table formatted as per DynamoDB
- * requirements as outline in the PHP SDK:
+ * The SchemaFactory renders a schema array for the table formatted as per DynamoDB
+ * requirements as outlined in the PHP SDK:
  *
  * https://docs.aws.amazon.com/aws-sdk-php/v2/api/class-Aws.DynamoDb.DynamoDbClient.html#_createTable
  *
@@ -36,15 +43,23 @@ class SchemaFactory
 
     private int $readCapacityUnits;
 
+    private bool $onDemand;
+
+    /** @var array<string, array> */
+    private array $secondaryIndexAttributeSchemas = [];
+
     /** @var array<string, mixed> */
     private array $schema;
 
     /** @var ReflectionClass<ItemInterface> */
     private ReflectionClass $reflectionClass;
 
+    private Validator $validator;
+
     public function __construct(
         private ItemInterface $item,
     ) {
+        $this->validator = new Validator();
         $this->reflectionClass = new ReflectionClass($this->item);
         $this->setRequiredDefaults();
         $this->renderSchema();
@@ -95,6 +110,10 @@ class SchemaFactory
                 if ($attributeName === WriteCapacityUnits::class) {
                     $this->writeCapacityUnits = $this->getFirstArgumentValue($classAttribute);
                 }
+
+                if ($attributeName === OnDemand::class) {
+                    $this->onDemand = $this->getFirstArgumentValue($classAttribute);
+                }
             }
         }
     }
@@ -109,6 +128,7 @@ class SchemaFactory
         $this->tableName = $this->reflectionClass->getShortName();
         $this->readCapacityUnits = Defaults::DEFAULT_READ_CAPACITY_UNITS;
         $this->writeCapacityUnits = Defaults::DEFAULT_WRITE_CAPACITY_UNITS;
+        $this->onDemand = Defaults::ON_DEMAND;
     }
 
     private function setSchemaSkeleton(): void
@@ -116,7 +136,8 @@ class SchemaFactory
         $schemaSkeleton = new Skeleton(
             $this->tableName,
             $this->readCapacityUnits,
-            $this->writeCapacityUnits
+            $this->writeCapacityUnits,
+            $this->onDemand,
         );
         $this->schema = $schemaSkeleton->getArray();
     }
@@ -125,16 +146,16 @@ class SchemaFactory
     {
         $properties = $this->reflectionClass->getProperties();
 
-        $validator = new Validator();
-
         foreach ($properties as $property) {
-            if ($validator->isPrimaryKey($property) === true) {
+            if ($this->validator->isPrimaryKey($property) === true) {
                 $this->setSchemaAttributeDefinition($property->getAttributes());
             }
-            if ($validator->isGlobalSecondaryIndex($property) === true) {
-                $this->setGlobalSecondaryIndexes($property->getAttributes());
+            if ($this->validator->isGlobalSecondaryIndex($property) === true) {
+                $this->resolveGlobalSecondaryIndex($property->getAttributes());
             }
         }
+
+        $this->setGlobalSecondaryIndexes();
     }
 
     /**
@@ -143,8 +164,21 @@ class SchemaFactory
      */
     private function getFirstArgumentValue(ReflectionAttribute $reflectionAttribute): mixed
     {
-        $arguments = $reflectionAttribute->getArguments();
-        return reset($arguments);
+        // Attributes with default values will require a
+        // new instance to retrieve the property value
+        switch ($reflectionAttribute->getName()) {
+            case OnDemand::class:
+                /** @var OnDemand $instance */
+                $instance = $reflectionAttribute->newInstance();
+                return $instance->isOnDemand();
+            case ProjectionType::class:
+                /** @var ProjectionType $instance */
+                $instance = $reflectionAttribute->newInstance();
+                return $instance->getType();
+            default:
+                $arguments = $reflectionAttribute->getArguments();
+                return reset($arguments);
+        }
     }
 
     /**
@@ -174,7 +208,7 @@ class SchemaFactory
     /**
      * @param array<ReflectionAttribute> $reflectionAttributes
      */
-    private function setGlobalSecondaryIndexes(array $reflectionAttributes): void
+    private function resolveGlobalSecondaryIndex(array $reflectionAttributes): void
     {
         $attributeDefinition = [];
         $readCapacityUnits = Defaults::DEFAULT_READ_CAPACITY_UNITS;
@@ -188,6 +222,8 @@ class SchemaFactory
                 case AttributeName::class:
                 case AttributeType::class:
                 case ProjectionTypeAttribute::class:
+                case NonKeyAttributes::class:
+                // case OnDemand::class:
                     $attributeDefinition[$qualifiedName] = $argumentValue;
                     break;
                 case GlobalSecondaryIndex::class:
@@ -209,17 +245,49 @@ class SchemaFactory
 
         $this->schema['AttributeDefinitions'][] = (new AttributeDefinition($attributeDefinition))->getArray();
 
-        $this->schema['GlobalSecondaryIndexes'][] = [
+        $provisionedThroughput = [
+            'ReadCapacityUnits' => $readCapacityUnits,
+            'WriteCapacityUnits' => $writeCapacityUnits,
+            // 'OnDemand' => $attributeDefinition[OnDemand::class] ?? false,
+        ];
+
+        $this->secondaryIndexAttributeSchemas[$indexName][] = [
             'IndexName' => $indexName,
             'KeySchema' => [
                 (new KeySchema($attributeDefinition))->getArray(),
             ],
             'Projection' => (new Projection($attributeDefinition))->getArray(),
-            'ProvisionedThroughput' => [
-                'ReadCapacityUnits' => $readCapacityUnits,
-                'WriteCapacityUnits' => $writeCapacityUnits,
-            ],
+            'ProvisionedThroughput' => $provisionedThroughput,
         ];
+    }
+
+    private function setGlobalSecondaryIndexes(): void
+    {
+        foreach ($this->secondaryIndexAttributeSchemas as $secondaryIndexAttributeSchema) {
+            if ($this->validator->isValidSecondaryIndexAttributeSchema($secondaryIndexAttributeSchema) === true) {
+                if (count($secondaryIndexAttributeSchema) > 1) {
+                    $this->schema['GlobalSecondaryIndexes'][] = $this->mergeSecondaryIndexSchemas($secondaryIndexAttributeSchema);
+                } else {
+                    $this->schema['GlobalSecondaryIndexes'][] = reset($secondaryIndexAttributeSchema);
+                }
+            }
+        }
+    }
+
+    /**
+     * @param array $secondaryIndexAttributeSchema
+     * @return array
+     */
+    private function mergeSecondaryIndexSchemas(array $secondaryIndexAttributeSchema): array
+    {
+        $mergedSchema = [];
+        foreach ($secondaryIndexAttributeSchema as $secondaryIndexAttributeSchemaValue) {
+            $mergedSchema['IndexName'] ??= $secondaryIndexAttributeSchemaValue['IndexName'];
+            $mergedSchema['KeySchema'][] = reset($secondaryIndexAttributeSchemaValue['KeySchema']);
+            $mergedSchema['Projection'] ??= $secondaryIndexAttributeSchemaValue['Projection'];
+            $mergedSchema['ProvisionedThroughput'] ??= $secondaryIndexAttributeSchemaValue['ProvisionedThroughput'];
+        }
+        return $mergedSchema;
     }
 
 }

@@ -7,14 +7,14 @@ namespace JLucki\ODM\Spark\Attribute;
 use Attribute;
 
 #[Attribute(Attribute::TARGET_CLASS|Attribute::TARGET_PROPERTY)]
-class ReadCapacityUnits
+class OnDemand
 {
     public function __construct(
-        private int $units,
+        private bool $onDemand = true,
     ) {}
 
-    public function getUnits(): int
+    public function isOnDemand(): bool
     {
-        return $this->units;
+        return $this->onDemand;
     }
 }

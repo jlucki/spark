@@ -3,7 +3,9 @@
 require __DIR__ . '/../vendor/autoload.php';
 
 use JLucki\ODM\Spark\Exception\ItemActionFailedException;
+use JLucki\ODM\Spark\Exception\NothingToUpdateException;
 use JLucki\ODM\Spark\Exception\TableDoesNotExistException;
+use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Model\Article;
 use JLucki\ODM\Spark\Query\Expression;
 use JLucki\ODM\Spark\Spark;
@@ -16,11 +18,19 @@ $spark = new Spark(
     secret: '', // Not required for local dev
 );
 
+//$spark->deleteTable(Article::class);
+
 try {
     $table = $spark->getTable(Article::class);
 } catch (TableDoesNotExistException) {
     $table = $spark->createTable(Article::class);
 }
+
+//try {
+//    $table = $spark->updateTable(Article::class);
+//} catch (TableUpdateFailedException|NothingToUpdateException) {
+//
+//}
 
 function getItems(Spark $spark): array
 {
@@ -49,7 +59,7 @@ function getItems(Spark $spark): array
 
 $items = getItems($spark);
 
-if (\count($items) < 4) {
+if (count($items) < 4) {
 
     $date = new DateTime();
 
@@ -75,9 +85,26 @@ if (\count($items) < 4) {
 /** @var Article[] $items */
 $items = getItems($spark);
 
-foreach ($items as $item) {
-    echo sprintf('<h3>%s</h3>', $item->getTitle());
-    echo sprintf('<p>%s</p>', $item->getSlug());
-    echo sprintf('<p>%s</p>', $item->getDatetime()->format('d-m-Y'));
-    echo $item->getContent();
-}
+?>
+
+<html lang="en">
+
+    <head>
+        <title>Spark ODM</title>
+        <link rel="shortcut icon" href="favicon.ico">
+    </head>
+
+    <body>
+
+        <?php
+            foreach ($items as $item) {
+                echo sprintf('<h3>%s</h3>', $item->getTitle());
+                echo sprintf('<p>%s</p>', $item->getSlug());
+                echo sprintf('<p>%s</p>', $item->getDatetime()->format('d-m-Y'));
+                echo $item->getContent();
+            }
+        ?>
+
+    </body>
+
+</html>

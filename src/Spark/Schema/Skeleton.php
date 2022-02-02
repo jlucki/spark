@@ -11,6 +11,7 @@ class Skeleton
         private string $tableName,
         private int $readCapacityUnits,
         private int $writeCapacityUnits,
+        private bool $onDemand,
     ) {}
 
     /**
@@ -23,6 +24,7 @@ class Skeleton
             'ProvisionedThroughput' => [
                 'ReadCapacityUnits' => $this->readCapacityUnits,
                 'WriteCapacityUnits' => $this->writeCapacityUnits,
+                'OnDemand' => $this->onDemand,
             ],
             'KeySchema' => [],
             'AttributeDefinitions' => [],

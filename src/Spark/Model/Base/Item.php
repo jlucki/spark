@@ -9,7 +9,7 @@ use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\OpenAttribute;
 use JLucki\ODM\Spark\Interface\ItemInterface;
 use Aws\DynamoDb\Marshaler;
-use JLucki\ODM\Spark\Schema\SchemaFactory;
+use JLucki\ODM\Spark\Schema\Factory\SchemaFactory;
 use JLucki\ODM\Spark\Validation\Validator;
 use ReflectionClass;
 use ReflectionNamedType;
