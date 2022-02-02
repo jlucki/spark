@@ -10,6 +10,8 @@ If you're looking for an easy, model driven way to get started with DynamoDB, lo
 
 Once the containers are running, simply visit `localhost` in your browser. Refresh a couple of times to get additional example blog entries. Have a look at `public/index.php` to see what's happening under the hood.
 
+You can also download the [NoSQL Workbench from AWS](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/workbench.settingup.html), to easily browse your DynamoDB data.  Once installed, open the workbench, click on `Operation builder` on the left hand side menu. Click on `+ Add connection`, switch to `DynamoDB local`, give the connection a name, leave the port on 8000, and click on `Connect`.
+
 ### Requirements
 
 This library only works with PHP 8.0 and up.
@@ -48,7 +50,9 @@ $spark = new Spark(
 See [Article.php](https://github.com/jlucki/spark/blob/master/src/Spark/Model/Article.php) for an example table/item data model.
 
 ### How to create a global secondary index:
-To create a GSI on your table add the `GlobalSecondaryIndex` attribute to the property. The GSI name will default to the value of `AttributeName`.
+To create a GSI on your table add the `GlobalSecondaryIndex` attribute to the property. The GSI name will default to the value of `AttributeName`. Alternatively, you can assign a custom name by passing a string into the GSI attribute `GlobalSecondaryIndex('customName')`.
+
+**Note:** You must provide a custom name for a GSI if the GSI has both `HASH` and `RANGE` keys, otherwise the two keys will not be recognised as a single GSI. See example below.
 
 The default projection type is `KEYS_ONLY`. To change the projection type add the `ProjectionType` attribute to the property, and pass in one of the following values: `ProjectionType::KEYS_ONLY`, `ProjectionType::INCLUDE`, or `ProjectionType::ALL`.
 
@@ -58,10 +62,19 @@ When using `ProjectionType::INCLUDE`, you will also have to add the `NonKeyAttri
     KeyType('HASH'),
     AttributeName('slug'),
     AttributeType('S'),
-    GlobalSecondaryIndex,
+    GlobalSecondaryIndex('slugIndex'),
     ProjectionType(ProjectionType::ALL),
 ]
 private string $slug;
+
+#[
+    KeyType('RANGE'),
+    AttributeName('slugDatetime'),
+    AttributeType('N'),
+    GlobalSecondaryIndex('slugIndex'),
+    ProjectionType(ProjectionType::ALL),
+]
+private DateTime $newSlugDatetime;
 ```
 
 ### How to create a table:
@@ -73,6 +86,18 @@ $table = $spark->createTable(Article::class);
 ```php
 $table = $spark->getTable(Article::class);
 ```
+
+### How to update a table:
+```php
+$result = $spark->updateTable(Article::class);
+```
+The `updateTable()` method will compare the described table schema as provided by DynamoDB to your local file schema, and compute any required changes. The `updateTable()` method supports:
+- Creating a new GSI
+- Removing an existing GSI
+- Uptading a GSI, but only if you're also updating the ProvisionedThroughput. This is an apparent limitation of the AWS PHP SDK.
+
+_Tip: You can add open attributes to your model without running the `updateTable()` method. This data will be automatically added to your table next time you put or update the item._ 
+
 
 ### How to delete a table:
 ```php

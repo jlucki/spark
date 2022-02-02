@@ -95,4 +95,11 @@ class Validator
         return $validator->isValid();
     }
 
+    public function isValidSecondaryIndexAttributeSchema(array $secondaryIndexAttributeSchema): bool
+    {
+        // TODO:    check $secondaryIndexAttributeSchema contains properly formatted
+        //          and matching attribute definitions
+        return true;
+    }
+
 }
