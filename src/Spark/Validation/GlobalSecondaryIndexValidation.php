@@ -39,18 +39,6 @@ class GlobalSecondaryIndexValidation
         return $this;
     }
 
-    public function passReadCapacityUnits(bool $pass): self
-    {
-        $this->rules['passReadCapacityUnits'] = $pass;
-        return $this;
-    }
-
-    public function passWriteCapacityUnits(bool $pass): self
-    {
-        $this->rules['passWriteCapacityUnits'] = $pass;
-        return $this;
-    }
-
     public function isValid(): bool
     {
         if (in_array(false, $this->rules, true) === false) {
