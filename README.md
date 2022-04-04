@@ -1,6 +1,7 @@
 # Spark Object Document Mapper
 
-[![GitHub license](https://img.shields.io/github/license/Naereen/StrapDown.js.svg)](https://choosealicense.com/licenses/mit/)
+[![GitHub license](https://img.shields.io/badge/license-MIT-green)](https://choosealicense.com/licenses/mit/)
+![Code coverage](https://img.shields.io/badge/coverage-11.70%25-red)
 
 **Spark ODM is currently in its infancy and may not be suitable for all applications. Please consider your use case carefully before deploying it to any critical systems.**
 
