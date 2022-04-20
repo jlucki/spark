@@ -83,10 +83,12 @@ class ItemOperator
         $data = $item->toArray(false);
 
         $updateExpression = [];
+        $expressionAttributeNames = [];
         $expressionAttributes = [];
         foreach ($data as $dataKey => $value) {
-            $updateExpression[] = sprintf('%s = :%s', $dataKey, $dataKey);
+            $updateExpression[] = sprintf('#%s = :%s', $dataKey, $dataKey);
             $expressionAttributes[':' . $dataKey] = $value;
+            $expressionAttributeNames['#' . $dataKey] = $dataKey;
         }
         $updateExpression = 'set ' . implode(', ', $updateExpression);
 
@@ -97,6 +99,7 @@ class ItemOperator
             'Key' => $key,
             'UpdateExpression' => $updateExpression,
             'ExpressionAttributeValues'=> $eav,
+            'ExpressionAttributeNames' => $expressionAttributeNames,
             'ReturnValues' => 'UPDATED_NEW'
         ];
 

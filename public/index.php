@@ -10,6 +10,9 @@ use JLucki\ODM\Spark\Model\Article;
 use JLucki\ODM\Spark\Query\Expression;
 use JLucki\ODM\Spark\Spark;
 
+$test = new \JLucki\ODM\Spark\Tests\Operator\ItemOperatorTest();
+$test->testItemUpdateWorksWithReservedWordAttribute();
+
 $spark = new Spark(
     version: 'latest',
     region: 'us-east-1',
@@ -84,6 +87,24 @@ if (count($items) < 4) {
 
 /** @var Article[] $items */
 $items = getItems($spark);
+
+$reservedItem = $items[0];
+
+$spark->updateItem($reservedItem);
+
+// testing using reserved word 'section'
+
+//$date = new DateTime();
+//
+//$blog = (new Article())
+//    ->setType('blog')
+//    ->setDatetime($date)
+//    ->setSlug('my-blog-post-' . $date->format('y-m-d-H-i-s'))
+//    ->setTitle('My Blog Post ' . $date->format('Y-m-d H:i:s'))
+//    ->setSection('section value')
+//    ->setContent('<p>Hello, this is the blog post content with a reserved keyword for an attribute.</p>');
+//
+//$blog = $spark->putItem($blog);
 
 ?>
 

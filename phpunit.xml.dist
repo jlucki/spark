@@ -16,7 +16,7 @@
     </testsuites>
     <coverage processUncoveredFiles="true">
         <include>
-            <directory suffix=".php">./src/Spark</directory>
+            <directory>./src/Spark</directory>
         </include>
     </coverage>
 </phpunit>

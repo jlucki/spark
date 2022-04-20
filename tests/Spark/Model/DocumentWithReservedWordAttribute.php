@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace JLucki\ODM\Spark\Model;
+namespace JLucki\ODM\Spark\Tests\Model;
 
 use JLucki\ODM\Spark\Attribute\AttributeName;
 use JLucki\ODM\Spark\Attribute\AttributeType;
@@ -12,31 +12,16 @@ use JLucki\ODM\Spark\Attribute\NonKeyAttributes;
 use JLucki\ODM\Spark\Attribute\OnDemand;
 use JLucki\ODM\Spark\Attribute\OpenAttribute;
 use JLucki\ODM\Spark\Attribute\ProjectionType;
-use JLucki\ODM\Spark\Attribute\ReadCapacityUnits;
 use JLucki\ODM\Spark\Attribute\TableName;
-use JLucki\ODM\Spark\Attribute\WriteCapacityUnits;
 use JLucki\ODM\Spark\Model\Base\Item;
 use DateTime;
 
-/**
- * This is an example DynamoDB Spark ODM item model
- */
-
 #[
-    TableName('Articles'),
-    ReadCapacityUnits(10),
-    WriteCapacityUnits(10),
+    TableName('DocumentsWithReservedWordAttribute'),
     OnDemand(true),
 ]
-class Article extends Item
+class DocumentWithReservedWordAttribute extends Item
 {
-
-    #[
-        KeyType('HASH'),
-        AttributeName('type'),
-        AttributeType('S'),
-    ]
-    private string $type;
 
     #[
         KeyType('RANGE'),
@@ -52,8 +37,6 @@ class Article extends Item
         GlobalSecondaryIndex,
         ProjectionType(ProjectionType::INCLUDE),
         NonKeyAttributes(['title', 'datetime']),
-        ReadCapacityUnits(12),
-        WriteCapacityUnits(12),
     ]
     private string $slug;
 
@@ -72,134 +55,58 @@ class Article extends Item
     ]
     private ?string $content;
 
-    #[
-        OpenAttribute('published'),
-    ]
-    private bool $published = false;
-
-    /**
-     * @return string
-     */
-    public function getType(): string
-    {
-        return $this->type;
-    }
-
-    /**
-     * @param string $type
-     * @return $this
-     */
-    public function setType(string $type): self
-    {
-        $this->type = $type;
-        return $this;
-    }
-
-    /**
-     * @return DateTime
-     */
     public function getDatetime(): DateTime
     {
         return $this->datetime;
     }
 
-    /**
-     * @param DateTime $datetime
-     * @return $this
-     */
     public function setDatetime(DateTime $datetime): self
     {
         $this->datetime = $datetime;
         return $this;
     }
 
-    /**
-     * @return string
-     */
     public function getSlug(): string
     {
         return $this->slug;
     }
 
-    /**
-     * @param string $slug
-     * @return $this
-     */
     public function setSlug(string $slug): self
     {
         $this->slug = $slug;
         return $this;
     }
 
-    /**
-     * @return string|null
-     */
     public function getTitle(): ?string
     {
         return $this->title;
     }
 
-    /**
-     * @param string|null $title
-     * @return $this
-     */
     public function setTitle(?string $title): self
     {
         $this->title = $title;
         return $this;
     }
 
-    /**
-     * @return string|null
-     */
     public function getSection(): ?string
     {
         return $this->section;
     }
 
-    /**
-     * @param string|null $section
-     * @return $this
-     */
     public function setSection(?string $section): self
     {
         $this->section = $section;
         return $this;
     }
 
-    /**
-     * @return string|null
-     */
     public function getContent(): ?string
     {
         return $this->content;
     }
 
-    /**
-     * @param string|null $content
-     * @return $this
-     */
     public function setContent(?string $content): self
     {
         $this->content = $content;
-        return $this;
-    }
-
-    /**
-     * @return bool
-     */
-    public function isPublished(): bool
-    {
-        return $this->published;
-    }
-
-    /**
-     * @param bool $published
-     * @return $this
-     */
-    public function setPublished(bool $published): self
-    {
-        $this->published = $published;
         return $this;
     }
 
