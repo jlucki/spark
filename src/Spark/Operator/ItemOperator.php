@@ -78,30 +78,7 @@ class ItemOperator
      */
     public function updateItem(ItemInterface $item): ItemInterface
     {
-        $key = $item->getKey();
-
-        $data = $item->toArray(false);
-
-        $updateExpression = [];
-        $expressionAttributeNames = [];
-        $expressionAttributes = [];
-        foreach ($data as $dataKey => $value) {
-            $updateExpression[] = sprintf('#%s = :%s', $dataKey, $dataKey);
-            $expressionAttributes[':' . $dataKey] = $value;
-            $expressionAttributeNames['#' . $dataKey] = $dataKey;
-        }
-        $updateExpression = 'set ' . implode(', ', $updateExpression);
-
-        $eav = $this->marshaler->marshalItem($expressionAttributes);
-
-        $params = [
-            'TableName' => $item->getTableName(),
-            'Key' => $key,
-            'UpdateExpression' => $updateExpression,
-            'ExpressionAttributeValues'=> $eav,
-            'ExpressionAttributeNames' => $expressionAttributeNames,
-            'ReturnValues' => 'UPDATED_NEW'
-        ];
+        $params = $this->getUpdateParams($item);
 
         try {
             $result = $this->client->updateItem($params);
@@ -143,6 +120,38 @@ class ItemOperator
         $itemData = $this->marshaler->unmarshalItem($result['Item']);
 
         return $this->makeModel($itemClass, $itemData);
+    }
+
+    /**
+     * @param ItemInterface $item
+     * @return array
+     */
+    public function getUpdateParams(ItemInterface $item): array
+    {
+        $key = $item->getKey();
+
+        $data = $item->toArray(false);
+
+        $updateExpression = [];
+        $expressionAttributeNames = [];
+        $expressionAttributes = [];
+        foreach ($data as $dataKey => $value) {
+            $updateExpression[] = sprintf('#%s = :%s', $dataKey, $dataKey);
+            $expressionAttributes[':' . $dataKey] = $value;
+            $expressionAttributeNames['#' . $dataKey] = $dataKey;
+        }
+        $updateExpression = 'set ' . implode(', ', $updateExpression);
+
+        $eav = $this->marshaler->marshalItem($expressionAttributes);
+
+        return [
+            'TableName' => $item->getTableName(),
+            'Key' => $key,
+            'UpdateExpression' => $updateExpression,
+            'ExpressionAttributeValues'=> $eav,
+            'ExpressionAttributeNames' => $expressionAttributeNames,
+            'ReturnValues' => 'UPDATED_NEW'
+        ];
     }
 
 }

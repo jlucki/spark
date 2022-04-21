@@ -17,10 +17,10 @@ use JLucki\ODM\Spark\Model\Base\Item;
 use DateTime;
 
 #[
-    TableName('DocumentsWithReservedWordAttribute'),
+    TableName('TestItems'),
     OnDemand(true),
 ]
-class DocumentWithReservedWordAttribute extends Item
+class TestItem extends Item
 {
 
     #[

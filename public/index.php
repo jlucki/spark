@@ -10,9 +10,6 @@ use JLucki\ODM\Spark\Model\Article;
 use JLucki\ODM\Spark\Query\Expression;
 use JLucki\ODM\Spark\Spark;
 
-$test = new \JLucki\ODM\Spark\Tests\Operator\ItemOperatorTest();
-$test->testItemUpdateWorksWithReservedWordAttribute();
-
 $spark = new Spark(
     version: 'latest',
     region: 'us-east-1',

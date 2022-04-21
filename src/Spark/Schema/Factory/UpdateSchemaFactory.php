@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace JLucki\ODM\Spark\Schema\Factory;
 
-use Exception;
 use JLucki\ODM\Spark\Exception\NothingToUpdateException;
 use JLucki\ODM\Spark\Exception\TableUpdateFailedException;
 use JLucki\ODM\Spark\Schema\Helper\ArrayHelper;
